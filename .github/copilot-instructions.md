@@ -80,7 +80,7 @@ docker compose down
 ```
 
 ### Testing
-- No test infrastructure currently exists
+- No automated tests currently exist
 - When adding tests, use Go's standard testing package (`testing`)
 - Test files should be named `*_test.go`
 - Run tests with `go test ./...`
