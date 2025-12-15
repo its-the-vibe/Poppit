@@ -52,12 +52,19 @@ func executeCommands(notification Notification) error {
 	log.Printf("Working directory: %s", notification.Dir)
 
 	// Verify the directory exists
+	// Note: This service is designed for trusted CI/CD pipelines. For untrusted
+	// environments, additional validation (e.g., path sanitization, whitelisting)
+	// should be implemented to prevent path traversal and unauthorized access.
 	if _, err := os.Stat(notification.Dir); os.IsNotExist(err) {
 		log.Printf("Directory does not exist: %s", notification.Dir)
 		return err
 	}
 
 	// Execute each command sequentially
+	// Note: Commands are executed via shell (sh -c) to support shell features like
+	// pipes, redirects, and environment variable expansion. This is intentional for
+	// CI/CD flexibility but requires trusted input sources. For untrusted environments,
+	// consider command whitelisting or argument parsing instead of shell execution.
 	for i, cmdStr := range notification.Commands {
 		log.Printf("Executing command %d/%d: %s", i+1, len(notification.Commands), cmdStr)
 

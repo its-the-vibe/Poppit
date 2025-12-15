@@ -84,9 +84,20 @@ Fields:
 
 ## Security Considerations
 
-- Commands are executed using `sh -c`, so be careful with untrusted input
+**IMPORTANT**: This service is designed for trusted CI/CD pipeline environments with controlled input sources.
+
+- Commands are executed using `sh -c`, which allows full shell features (pipes, redirects, variable expansion) but also means any shell command can be executed
+- **Only use this service with trusted notification sources** (e.g., internal Redis instances behind a firewall)
 - Ensure the Redis instance is secured and not publicly accessible
+- Use authentication (REDIS_PASSWORD) when connecting to Redis
 - The working directory must exist before commands are executed
 - Commands run with the same permissions as the Poppit process
+- Consider running Poppit with limited user permissions (non-root)
+- For production deployments:
+  - Use firewall rules to restrict Redis access
+  - Implement authentication/authorization on the notification source
+  - Consider running in an isolated environment (e.g., container, VM, chroot jail)
+  - Monitor and log all command executions
+  - Validate notification sources before pushing to Redis
 
 
