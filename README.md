@@ -1,48 +1,44 @@
 # Poppit
-A simple service written in Go that will pop json notifications from a redis list and execute commands listed in the payload - the original purpose is to run a CI/CD pipeline.
+A service written in Go that pops JSON notifications from a Redis list and executes commands listed in the payload - the original purpose is to run a CI/CD pipeline.
 
 ## Features
 
 - Connects to Redis and pops messages from a configurable list
-- Parses JSON notifications and prints them
+- Parses JSON notifications and executes commands
+- Executes commands in specified working directories
 - Configurable via environment variables
-- Docker Compose setup for easy deployment
 - Graceful shutdown support
 
 ## Quick Start
 
-### Using Docker Compose
+### Prerequisites
 
-1. Start the services:
-```bash
-docker compose up -d
-```
+- Go 1.23 or later
+- Redis server running and accessible
 
-2. Push a test notification to Redis:
-```bash
-docker compose exec redis redis-cli LPUSH poppit:notifications '{"command":"echo","args":["Hello, World!"],"meta":{"job_id":"123"}}'
-```
-
-3. View the logs:
-```bash
-docker compose logs -f poppit
-```
-
-4. Stop the services:
-```bash
-docker compose down
-```
-
-### Using Go directly
+### Build and Run
 
 1. Build the application:
 ```bash
 go build -o poppit .
 ```
 
-2. Run with custom configuration:
+2. Run with default configuration (assumes Redis at localhost:6379):
+```bash
+./poppit
+```
+
+3. Run with custom configuration:
 ```bash
 REDIS_ADDR=localhost:6379 REDIS_LIST_NAME=poppit:notifications ./poppit
+```
+
+### Testing
+
+To test the service, push a notification to Redis:
+
+```bash
+redis-cli LPUSH poppit:notifications '{"repo":"its-the-vibe/github-dispatcher","branch":"refs/heads/main","type":"git-webhook","dir":"/tmp","commands":["echo hello","echo world"]}'
 ```
 
 ## Configuration
@@ -59,25 +55,49 @@ Notifications should be JSON objects with the following structure:
 
 ```json
 {
-  "command": "echo",
-  "args": ["Hello", "World"],
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "meta": {
-    "job_id": "123",
-    "timestamp": "2024-12-14T20:00:00Z"
-  }
+  "repo": "its-the-vibe/github-dispatcher",
+  "branch": "refs/heads/main",
+  "type": "git-webhook",
+  "dir": "/home/whatever/whereever",
+  "commands": [
+    "echo hello",
+    "echo world"
+  ]
 }
 ```
 
 Fields:
-- `command` (required): The command to execute
-- `args` (optional): Array of command arguments
-- `env` (optional): Environment variables for the command
-- `meta` (optional): Additional metadata
+- `repo` (required): The repository identifier
+- `branch` (required): The branch reference
+- `type` (required): The notification type (e.g., "git-webhook")
+- `dir` (required): The working directory where commands should be executed
+- `commands` (required): Array of shell commands to execute sequentially
 
-## Current Status
+## How It Works
 
-This is the first iteration that pops messages from Redis and prints them. Future versions will execute the commands listed in the payload for CI/CD automation.
+1. Poppit connects to Redis and continuously polls for messages on the configured list
+2. When a message is received, it parses the JSON notification
+3. It verifies the specified working directory exists
+4. It executes each command sequentially in the specified directory
+5. Command output (stdout/stderr) is logged
+6. If a command fails, execution stops and the error is logged
+
+## Security Considerations
+
+**IMPORTANT**: This service is designed for trusted CI/CD pipeline environments with controlled input sources.
+
+- Commands are executed using `sh -c`, which allows full shell features (pipes, redirects, variable expansion) but also means any shell command can be executed
+- **Only use this service with trusted notification sources** (e.g., internal Redis instances behind a firewall)
+- Ensure the Redis instance is secured and not publicly accessible
+- Use authentication (REDIS_PASSWORD) when connecting to Redis
+- The working directory must exist before commands are executed
+- Commands run with the same permissions as the Poppit process
+- Consider running Poppit with limited user permissions (non-root)
+- For production deployments:
+  - Use firewall rules to restrict Redis access
+  - Implement authentication/authorization on the notification source
+  - Consider running in an isolated environment (e.g., container, VM, chroot jail)
+  - Monitor and log all command executions
+  - Validate notification sources before pushing to Redis
+
 

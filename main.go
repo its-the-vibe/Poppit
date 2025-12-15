@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -20,10 +21,11 @@ type Config struct {
 }
 
 type Notification struct {
-	Command string                 `json:"command"`
-	Args    []string               `json:"args,omitempty"`
-	Env     map[string]string      `json:"env,omitempty"`
-	Meta    map[string]interface{} `json:"meta,omitempty"`
+	Repo     string   `json:"repo"`
+	Branch   string   `json:"branch"`
+	Type     string   `json:"type"`
+	Dir      string   `json:"dir"`
+	Commands []string `json:"commands"`
 }
 
 func loadConfig() Config {
@@ -43,6 +45,43 @@ func loadConfig() Config {
 		RedisDB:       0,
 		ListName:      listName,
 	}
+}
+
+func executeCommands(notification Notification) error {
+	log.Printf("Executing commands for repo: %s, branch: %s", notification.Repo, notification.Branch)
+	log.Printf("Working directory: %s", notification.Dir)
+
+	// Verify the directory exists
+	// Note: This service is designed for trusted CI/CD pipelines. For untrusted
+	// environments, additional validation (e.g., path sanitization, whitelisting)
+	// should be implemented to prevent path traversal and unauthorized access.
+	if _, err := os.Stat(notification.Dir); os.IsNotExist(err) {
+		log.Printf("Directory does not exist: %s", notification.Dir)
+		return err
+	}
+
+	// Execute each command sequentially
+	// Note: Commands are executed via shell (sh -c) to support shell features like
+	// pipes, redirects, and environment variable expansion. This is intentional for
+	// CI/CD flexibility but requires trusted input sources. For untrusted environments,
+	// consider command whitelisting or argument parsing instead of shell execution.
+	for i, cmdStr := range notification.Commands {
+		log.Printf("Executing command %d/%d: %s", i+1, len(notification.Commands), cmdStr)
+
+		cmd := exec.Command("sh", "-c", cmdStr)
+		cmd.Dir = notification.Dir
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			log.Printf("Command failed: %s (error: %v)", cmdStr, err)
+			return err
+		}
+		log.Printf("Command %d completed successfully", i+1)
+	}
+
+	log.Println("All commands executed successfully")
+	return nil
 }
 
 func main() {
@@ -107,6 +146,12 @@ func main() {
 			if err == nil {
 				log.Printf("Parsed notification:\n%s", string(prettyJSON))
 			}
+
+			// Execute the commands
+			if err := executeCommands(notification); err != nil {
+				log.Printf("Failed to execute commands: %v", err)
+			}
+
 			log.Println("========================")
 		}
 	}()
