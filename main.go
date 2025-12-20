@@ -71,9 +71,9 @@ func loadConfig() Config {
 func publishCompletionMessage(ctx context.Context, rdb *redis.Client, config Config, notification Notification, success bool, errMsg string) error {
 	var messageText string
 	if success {
-		messageText = fmt.Sprintf("✅ Commands completed successfully for %s on branch %s", notification.Repo, notification.Branch)
+		messageText = fmt.Sprintf("✅ Commands completed successfully for `%s` on branch `%s`", notification.Repo, notification.Branch)
 	} else {
-		messageText = fmt.Sprintf("❌ Commands failed for %s on branch %s: %s", notification.Repo, notification.Branch, errMsg)
+		messageText = fmt.Sprintf("❌ Commands failed for `%s` on branch `%s`: %s", notification.Repo, notification.Branch, errMsg)
 	}
 
 	completionMsg := CompletionMessage{
