@@ -6,6 +6,7 @@ A service written in Go that pops JSON notifications from a Redis list and execu
 - Connects to Redis and pops messages from a configurable list
 - Parses JSON notifications and executes commands
 - Executes commands in specified working directories
+- Publishes completion messages to Redis for Slack integration
 - Configurable via environment variables
 - Graceful shutdown support
 
@@ -48,6 +49,8 @@ Configuration is done via environment variables:
 - `REDIS_ADDR`: Redis server address (default: `localhost:6379`)
 - `REDIS_PASSWORD`: Redis password (default: empty)
 - `REDIS_LIST_NAME`: Redis list name to pop from (default: `poppit:notifications`)
+- `REDIS_PUBLISH_LIST_NAME`: Redis list name to publish completion messages to (default: `slack_messages`)
+- `SLACK_CHANNEL`: Slack channel for completion notifications (default: `#ci-cd`)
 
 ## Notification Format
 
@@ -81,6 +84,44 @@ Fields:
 4. It executes each command sequentially in the specified directory
 5. Command output (stdout/stderr) is logged
 6. If a command fails, execution stops and the error is logged
+7. After all commands complete (success or failure), a completion message is published to Redis
+8. The completion message is formatted for [SlackLiner](https://github.com/its-the-vibe/SlackLiner) to send to Slack
+
+## Completion Messages
+
+After processing a notification, Poppit publishes a completion message to Redis (list: `slack_messages` by default) that can be consumed by SlackLiner for Slack notifications.
+
+**Success Message Format:**
+```json
+{
+  "channel": "#ci-cd",
+  "text": "✅ Commands completed successfully for its-the-vibe/repo on branch refs/heads/main",
+  "metadata": {
+    "event_type": "git-webhook",
+    "event_payload": {
+      "repo": "its-the-vibe/repo",
+      "branch": "refs/heads/main",
+      "dir": "/path/to/dir"
+    }
+  }
+}
+```
+
+**Failure Message Format:**
+```json
+{
+  "channel": "#ci-cd",
+  "text": "❌ Commands failed for its-the-vibe/repo on branch refs/heads/main: exit status 1",
+  "metadata": {
+    "event_type": "git-webhook",
+    "event_payload": {
+      "repo": "its-the-vibe/repo",
+      "branch": "refs/heads/main",
+      "dir": "/path/to/dir"
+    }
+  }
+}
+```
 
 ## Security Considerations
 
