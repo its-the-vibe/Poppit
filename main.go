@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
@@ -14,10 +15,12 @@ import (
 )
 
 type Config struct {
-	RedisAddr string
-	RedisPassword string
-	RedisDB   int
-	ListName  string
+	RedisAddr       string
+	RedisPassword   string
+	RedisDB         int
+	ListName        string
+	PublishListName string
+	SlackChannel    string
 }
 
 type Notification struct {
@@ -26,6 +29,12 @@ type Notification struct {
 	Type     string   `json:"type"`
 	Dir      string   `json:"dir"`
 	Commands []string `json:"commands"`
+}
+
+type CompletionMessage struct {
+	Channel  string                 `json:"channel"`
+	Text     string                 `json:"text"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
 func loadConfig() Config {
@@ -39,12 +48,57 @@ func loadConfig() Config {
 		listName = "poppit:notifications"
 	}
 
-	return Config{
-		RedisAddr:     redisAddr,
-		RedisPassword: os.Getenv("REDIS_PASSWORD"),
-		RedisDB:       0,
-		ListName:      listName,
+	publishListName := os.Getenv("REDIS_PUBLISH_LIST_NAME")
+	if publishListName == "" {
+		publishListName = "slack_messages"
 	}
+
+	slackChannel := os.Getenv("SLACK_CHANNEL")
+	if slackChannel == "" {
+		slackChannel = "#ci-cd"
+	}
+
+	return Config{
+		RedisAddr:       redisAddr,
+		RedisPassword:   os.Getenv("REDIS_PASSWORD"),
+		RedisDB:         0,
+		ListName:        listName,
+		PublishListName: publishListName,
+		SlackChannel:    slackChannel,
+	}
+}
+
+func publishCompletionMessage(ctx context.Context, rdb *redis.Client, config Config, notification Notification, success bool, errMsg string) error {
+	var messageText string
+	if success {
+		messageText = fmt.Sprintf("✅ Commands completed successfully for %s on branch %s", notification.Repo, notification.Branch)
+	} else {
+		messageText = fmt.Sprintf("❌ Commands failed for %s on branch %s: %s", notification.Repo, notification.Branch, errMsg)
+	}
+
+	completionMsg := CompletionMessage{
+		Channel: config.SlackChannel,
+		Text:    messageText,
+		Metadata: map[string]interface{}{
+			"event_type": notification.Type,
+			"event_payload": map[string]interface{}{
+				"repo":   notification.Repo,
+				"branch": notification.Branch,
+			},
+		},
+	}
+
+	msgJSON, err := json.Marshal(completionMsg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal completion message: %w", err)
+	}
+
+	if err := rdb.LPush(ctx, config.PublishListName, msgJSON).Err(); err != nil {
+		return fmt.Errorf("failed to push completion message to Redis: %w", err)
+	}
+
+	log.Printf("Published completion message to %s", config.PublishListName)
+	return nil
 }
 
 func executeCommands(notification Notification) error {
@@ -150,6 +204,15 @@ func main() {
 			// Execute the commands
 			if err := executeCommands(notification); err != nil {
 				log.Printf("Failed to execute commands: %v", err)
+				// Publish failure message
+				if pubErr := publishCompletionMessage(ctx, rdb, config, notification, false, err.Error()); pubErr != nil {
+					log.Printf("Failed to publish completion message: %v", pubErr)
+				}
+			} else {
+				// Publish success message
+				if pubErr := publishCompletionMessage(ctx, rdb, config, notification, true, ""); pubErr != nil {
+					log.Printf("Failed to publish completion message: %v", pubErr)
+				}
 			}
 
 			log.Println("========================")
@@ -159,11 +222,11 @@ func main() {
 	// Wait for shutdown signal
 	<-sigChan
 	log.Println("\nShutting down gracefully...")
-	
+
 	// Close Redis connection
 	if err := rdb.Close(); err != nil {
 		log.Printf("Error closing Redis connection: %v", err)
 	}
-	
+
 	log.Println("Shutdown complete")
 }
