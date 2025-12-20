@@ -84,7 +84,6 @@ func publishCompletionMessage(ctx context.Context, rdb *redis.Client, config Con
 			"event_payload": map[string]interface{}{
 				"repo":   notification.Repo,
 				"branch": notification.Branch,
-				"dir":    notification.Dir,
 			},
 		},
 	}
