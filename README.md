@@ -14,7 +14,7 @@ A service written in Go that pops JSON notifications from a Redis list and execu
 
 ### Prerequisites
 
-- Go 1.23 or later
+- Go 1.25 or later
 - Redis server running and accessible
 
 ### Build and Run
@@ -51,6 +51,7 @@ Configuration is done via environment variables:
 - `REDIS_LIST_NAME`: Redis list name to pop from (default: `poppit:notifications`)
 - `REDIS_PUBLISH_LIST_NAME`: Redis list name to publish completion messages to (default: `slack_messages`)
 - `SLACK_CHANNEL`: Slack channel for completion notifications (default: `#ci-cd`)
+- `DEFAULT_TTL`: Default TTL (time-to-live) in seconds for completion messages (default: `86400`)
 
 ## Notification Format
 
@@ -84,7 +85,7 @@ Fields:
 4. It executes each command sequentially in the specified directory
 5. Command output (stdout/stderr) is logged
 6. If a command fails, execution stops and the error is logged
-7. After all commands complete (success or failure), a completion message is published to Redis
+7. After all commands complete (success or failure), a completion message is published to Redis, including a TTL field
 8. The completion message is formatted for [SlackLiner](https://github.com/its-the-vibe/SlackLiner) to send to Slack
 
 ## Completion Messages
@@ -96,6 +97,7 @@ After processing a notification, Poppit publishes a completion message to Redis 
 {
   "channel": "#ci-cd",
   "text": "✅ Commands completed successfully for its-the-vibe/repo on branch refs/heads/main",
+  "ttl": 86400,
   "metadata": {
     "event_type": "git-webhook",
     "event_payload": {
@@ -112,6 +114,7 @@ After processing a notification, Poppit publishes a completion message to Redis 
 {
   "channel": "#ci-cd",
   "text": "❌ Commands failed for its-the-vibe/repo on branch refs/heads/main: exit status 1",
+  "ttl": 86400,
   "metadata": {
     "event_type": "git-webhook",
     "event_payload": {

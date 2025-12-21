@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -21,6 +22,7 @@ type Config struct {
 	ListName        string
 	PublishListName string
 	SlackChannel    string
+	DefaultTTL      int
 }
 
 type Notification struct {
@@ -34,6 +36,7 @@ type Notification struct {
 type CompletionMessage struct {
 	Channel  string                 `json:"channel"`
 	Text     string                 `json:"text"`
+	TTL      int                    `json:"ttl,omitempty"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -58,6 +61,13 @@ func loadConfig() Config {
 		slackChannel = "#ci-cd"
 	}
 
+	defaultTTL := 24 * 60 * 60
+	if ttlStr := os.Getenv("DEFAULT_TTL"); ttlStr != "" {
+		if ttlVal, err := strconv.Atoi(ttlStr); err == nil && ttlVal > 0 {
+			defaultTTL = ttlVal
+		}
+	}
+
 	return Config{
 		RedisAddr:       redisAddr,
 		RedisPassword:   os.Getenv("REDIS_PASSWORD"),
@@ -65,6 +75,7 @@ func loadConfig() Config {
 		ListName:        listName,
 		PublishListName: publishListName,
 		SlackChannel:    slackChannel,
+		DefaultTTL:      defaultTTL,
 	}
 }
 
@@ -79,6 +90,7 @@ func publishCompletionMessage(ctx context.Context, rdb *redis.Client, config Con
 	completionMsg := CompletionMessage{
 		Channel: config.SlackChannel,
 		Text:    messageText,
+		TTL:     config.DefaultTTL,
 		Metadata: map[string]interface{}{
 			"event_type": notification.Type,
 			"event_payload": map[string]interface{}{
