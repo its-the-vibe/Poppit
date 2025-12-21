@@ -16,13 +16,14 @@ import (
 )
 
 type Config struct {
-	RedisAddr       string
-	RedisPassword   string
-	RedisDB         int
-	ListName        string
-	PublishListName string
-	SlackChannel    string
-	DefaultTTL      int
+	RedisAddr            string
+	RedisPassword        string
+	RedisDB              int
+	ListName             string
+	PublishListName      string
+	SlackChannel         string
+	DefaultTTL           int
+	CommandOutputChannel string
 }
 
 type Notification struct {
@@ -31,6 +32,7 @@ type Notification struct {
 	Type     string   `json:"type"`
 	Dir      string   `json:"dir"`
 	Commands []string `json:"commands"`
+	TaskID   string   `json:"taskId,omitempty"`
 }
 
 type CompletionMessage struct {
@@ -38,6 +40,13 @@ type CompletionMessage struct {
 	Text     string                 `json:"text"`
 	TTL      int                    `json:"ttl,omitempty"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
+}
+
+type CommandOutput struct {
+	TaskID  string `json:"taskId"`
+	Type    string `json:"type"`
+	Command string `json:"command"`
+	Output  string `json:"output"`
 }
 
 func loadConfig() Config {
@@ -61,6 +70,11 @@ func loadConfig() Config {
 		slackChannel = "#ci-cd"
 	}
 
+	commandOutputChannel := os.Getenv("COMMAND_OUTPUT_CHANNEL")
+	if commandOutputChannel == "" {
+		commandOutputChannel = "poppit:command-output"
+	}
+
 	defaultTTL := 24 * 60 * 60
 	if ttlStr := os.Getenv("DEFAULT_TTL"); ttlStr != "" {
 		if ttlVal, err := strconv.Atoi(ttlStr); err == nil && ttlVal > 0 {
@@ -69,13 +83,14 @@ func loadConfig() Config {
 	}
 
 	return Config{
-		RedisAddr:       redisAddr,
-		RedisPassword:   os.Getenv("REDIS_PASSWORD"),
-		RedisDB:         0,
-		ListName:        listName,
-		PublishListName: publishListName,
-		SlackChannel:    slackChannel,
-		DefaultTTL:      defaultTTL,
+		RedisAddr:            redisAddr,
+		RedisPassword:        os.Getenv("REDIS_PASSWORD"),
+		RedisDB:              0,
+		ListName:             listName,
+		PublishListName:      publishListName,
+		SlackChannel:         slackChannel,
+		DefaultTTL:           defaultTTL,
+		CommandOutputChannel: commandOutputChannel,
 	}
 }
 
@@ -113,7 +128,28 @@ func publishCompletionMessage(ctx context.Context, rdb *redis.Client, config Con
 	return nil
 }
 
-func executeCommands(notification Notification) error {
+func publishCommandOutput(ctx context.Context, rdb *redis.Client, config Config, notification Notification, command string, output string) error {
+	cmdOutput := CommandOutput{
+		TaskID:  notification.TaskID,
+		Type:    notification.Type,
+		Command: command,
+		Output:  output,
+	}
+
+	msgJSON, err := json.Marshal(cmdOutput)
+	if err != nil {
+		return fmt.Errorf("failed to marshal command output: %w", err)
+	}
+
+	if err := rdb.Publish(ctx, config.CommandOutputChannel, msgJSON).Err(); err != nil {
+		return fmt.Errorf("failed to publish command output to Redis channel: %w", err)
+	}
+
+	log.Printf("Published command output to channel %s", config.CommandOutputChannel)
+	return nil
+}
+
+func executeCommands(ctx context.Context, rdb *redis.Client, config Config, notification Notification) error {
 	log.Printf("Executing commands for repo: %s, branch: %s", notification.Repo, notification.Branch)
 	log.Printf("Working directory: %s", notification.Dir)
 
@@ -136,12 +172,35 @@ func executeCommands(notification Notification) error {
 
 		cmd := exec.Command("sh", "-c", cmdStr)
 		cmd.Dir = notification.Dir
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
 
-		if err := cmd.Run(); err != nil {
-			log.Printf("Command failed: %s (error: %v)", cmdStr, err)
-			return err
+		// If taskId is present, capture output to publish
+		if notification.TaskID != "" {
+			output, err := cmd.CombinedOutput()
+			outputStr := string(output)
+			
+			// Log the output to stdout for observability
+			if outputStr != "" {
+				log.Printf("Command output:\n%s", outputStr)
+			}
+
+			// Publish command output to Redis channel
+			if pubErr := publishCommandOutput(ctx, rdb, config, notification, cmdStr, outputStr); pubErr != nil {
+				log.Printf("Failed to publish command output: %v", pubErr)
+			}
+
+			if err != nil {
+				log.Printf("Command failed: %s (error: %v)", cmdStr, err)
+				return err
+			}
+		} else {
+			// Original behavior - stream output to stdout/stderr
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			if err := cmd.Run(); err != nil {
+				log.Printf("Command failed: %s (error: %v)", cmdStr, err)
+				return err
+			}
 		}
 		log.Printf("Command %d completed successfully", i+1)
 	}
@@ -214,7 +273,7 @@ func main() {
 			}
 
 			// Execute the commands
-			if err := executeCommands(notification); err != nil {
+			if err := executeCommands(ctx, rdb, config, notification); err != nil {
 				log.Printf("Failed to execute commands: %v", err)
 				// Publish failure message
 				if pubErr := publishCompletionMessage(ctx, rdb, config, notification, false, err.Error()); pubErr != nil {
