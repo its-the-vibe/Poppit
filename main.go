@@ -175,9 +175,11 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 
 		// If taskId is present, capture output to publish
 		if notification.TaskID != "" {
+			// Note: CombinedOutput() buffers output in memory. For commands with
+			// very large outputs, consider implementing streaming or output limits.
 			output, err := cmd.CombinedOutput()
 			outputStr := string(output)
-			
+
 			// Log the output to stdout for observability
 			if outputStr != "" {
 				log.Printf("Command output:\n%s", outputStr)
