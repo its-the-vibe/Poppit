@@ -42,6 +42,118 @@ To test the service, push a notification to Redis:
 redis-cli LPUSH poppit:notifications '{"repo":"its-the-vibe/github-dispatcher","branch":"refs/heads/main","type":"git-webhook","dir":"/tmp","commands":["echo hello","echo world"]}'
 ```
 
+## Installing as a systemd Service
+
+To run Poppit as a systemd service on Linux systems:
+
+### 1. Build the Application
+
+```bash
+go build -o poppit .
+```
+
+### 2. Install the Binary
+
+```bash
+# Create installation directory
+sudo mkdir -p /opt/poppit
+
+# Copy the binary
+sudo cp poppit /opt/poppit/
+
+# Set ownership and permissions
+sudo chown root:root /opt/poppit/poppit
+sudo chmod 755 /opt/poppit/poppit
+```
+
+### 3. Create a Service User
+
+It's recommended to run Poppit as a dedicated user for security:
+
+```bash
+# Create a system user for running Poppit
+sudo useradd -r -s /bin/false -d /opt/poppit poppit
+```
+
+### 4. Install the systemd Service File
+
+```bash
+# Copy the service file
+sudo cp poppit.service /etc/systemd/system/
+
+# Edit the service file to configure your environment variables
+sudo nano /etc/systemd/system/poppit.service
+
+# Reload systemd to recognize the new service
+sudo systemctl daemon-reload
+```
+
+### 5. Configure the Service
+
+Edit `/etc/systemd/system/poppit.service` to set your environment variables:
+
+- `REDIS_ADDR`: Your Redis server address
+- `REDIS_PASSWORD`: Your Redis password (if required)
+- `REDIS_LIST_NAME`: Redis list name to monitor
+- Other configuration variables as needed
+
+For Redis authentication, you can also use systemd's environment file:
+
+```bash
+# Create environment file
+sudo nano /etc/poppit/poppit.env
+```
+
+Add your sensitive variables:
+```
+REDIS_PASSWORD=your-secret-password
+```
+
+Then update the service file to include:
+```
+EnvironmentFile=/etc/poppit/poppit.env
+```
+
+### 6. Start and Enable the Service
+
+```bash
+# Start the service
+sudo systemctl start poppit
+
+# Check the status
+sudo systemctl status poppit
+
+# Enable the service to start on boot
+sudo systemctl enable poppit
+```
+
+### 7. View Logs
+
+```bash
+# View recent logs
+sudo journalctl -u poppit -n 50
+
+# Follow logs in real-time
+sudo journalctl -u poppit -f
+
+# View logs since boot
+sudo journalctl -u poppit -b
+```
+
+### 8. Managing the Service
+
+```bash
+# Stop the service
+sudo systemctl stop poppit
+
+# Restart the service
+sudo systemctl restart poppit
+
+# Reload configuration after editing the service file
+sudo systemctl daemon-reload
+sudo systemctl restart poppit
+```
+
 ## Configuration
 
 Configuration is done via environment variables:
