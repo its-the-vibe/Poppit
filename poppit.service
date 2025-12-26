@@ -1,0 +1,36 @@
+[Unit]
+Description=Poppit - Redis notification processor for CI/CD
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=poppit
+Group=poppit
+WorkingDirectory=/opt/poppit
+ExecStart=/opt/poppit/poppit
+Restart=always
+RestartSec=10
+
+# Environment variables
+Environment="REDIS_ADDR=localhost:6379"
+Environment="REDIS_LIST_NAME=poppit:notifications"
+Environment="REDIS_PUBLISH_LIST_NAME=slack_messages"
+Environment="SLACK_CHANNEL=#ci-cd"
+Environment="DEFAULT_TTL=86400"
+Environment="COMMAND_OUTPUT_CHANNEL=poppit:command-output"
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/tmp
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=poppit
+
+[Install]
+WantedBy=multi-user.target
