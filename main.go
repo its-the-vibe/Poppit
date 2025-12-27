@@ -27,12 +27,12 @@ type Config struct {
 }
 
 type Notification struct {
-	Repo     string   `json:"repo"`
-	Branch   string   `json:"branch"`
-	Type     string   `json:"type"`
-	Dir      string   `json:"dir"`
-	Commands []string `json:"commands"`
-	TaskID   string   `json:"taskId,omitempty"`
+	Repo     string                 `json:"repo"`
+	Branch   string                 `json:"branch"`
+	Type     string                 `json:"type"`
+	Dir      string                 `json:"dir"`
+	Commands []string               `json:"commands"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
 type CompletionMessage struct {
@@ -43,10 +43,10 @@ type CompletionMessage struct {
 }
 
 type CommandOutput struct {
-	TaskID  string `json:"taskId"`
-	Type    string `json:"type"`
-	Command string `json:"command"`
-	Output  string `json:"output"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	Type     string                 `json:"type"`
+	Command  string                 `json:"command"`
+	Output   string                 `json:"output"`
 }
 
 func loadConfig() Config {
@@ -130,10 +130,10 @@ func publishCompletionMessage(ctx context.Context, rdb *redis.Client, config Con
 
 func publishCommandOutput(ctx context.Context, rdb *redis.Client, config Config, notification Notification, command string, output string) error {
 	cmdOutput := CommandOutput{
-		TaskID:  notification.TaskID,
-		Type:    notification.Type,
-		Command: command,
-		Output:  output,
+		Metadata: notification.Metadata,
+		Type:     notification.Type,
+		Command:  command,
+		Output:   output,
 	}
 
 	msgJSON, err := json.Marshal(cmdOutput)
@@ -173,8 +173,8 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 		cmd := exec.Command("sh", "-c", cmdStr)
 		cmd.Dir = notification.Dir
 
-		// If taskId is present, capture output to publish
-		if notification.TaskID != "" {
+		// If metadata is present, capture output to publish
+		if notification.Metadata != nil && len(notification.Metadata) > 0 {
 			// Note: CombinedOutput() buffers output in memory. For commands with
 			// very large outputs, consider implementing streaming or output limits.
 			output, err := cmd.CombinedOutput()

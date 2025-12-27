@@ -164,7 +164,7 @@ Configuration is done via environment variables:
 - `REDIS_PUBLISH_LIST_NAME`: Redis list name to publish completion messages to (default: `slack_messages`)
 - `SLACK_CHANNEL`: Slack channel for completion notifications (default: `#ci-cd`)
 - `DEFAULT_TTL`: Default TTL (time-to-live) in seconds for completion messages (default: `86400`)
-- `COMMAND_OUTPUT_CHANNEL`: Redis channel to publish command output to when taskId is present (default: `poppit:command-output`)
+- `COMMAND_OUTPUT_CHANNEL`: Redis channel to publish command output to when metadata is present (default: `poppit:command-output`)
 
 ## Notification Format
 
@@ -180,7 +180,11 @@ Notifications should be JSON objects with the following structure:
     "echo hello",
     "echo world"
   ],
-  "taskId": "task-12345"
+  "metadata": {
+    "taskId": "task-12345",
+    "userId": "user-456",
+    "source": "github-webhook"
+  }
 }
 ```
 
@@ -190,7 +194,7 @@ Fields:
 - `type` (required): The notification type (e.g., "git-webhook")
 - `dir` (required): The working directory where commands should be executed
 - `commands` (required): Array of shell commands to execute sequentially
-- `taskId` (optional): Task identifier for publishing command output to Redis channel
+- `metadata` (optional): JSON object containing customizable metadata about the request (e.g., task ID, user ID, source)
 
 ## How It Works
 
@@ -243,12 +247,16 @@ After processing a notification, Poppit publishes a completion message to Redis 
 
 ## Command Output Publishing
 
-When a notification includes an optional `taskId` field, Poppit will publish the output of each executed command to a Redis channel (default: `poppit:command-output`). This allows callers to receive real-time feedback on command execution.
+When a notification includes an optional `metadata` field, Poppit will publish the output of each executed command to a Redis channel (default: `poppit:command-output`). This allows callers to receive real-time feedback on command execution. The metadata is returned as-is in the command output.
 
 **Command Output Message Format:**
 ```json
 {
-  "taskId": "task-12345",
+  "metadata": {
+    "taskId": "task-12345",
+    "userId": "user-456",
+    "source": "github-webhook"
+  },
   "type": "git-webhook",
   "command": "git pull",
   "output": "remote: Enumerating objects: 7, done.\nremote: Counting objects: 100% (7/7), done.\nremote: Compressing objects: 100% (1/1), done.\nremote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)\nUnpacking objects: 100% (4/4), 496 bytes | 49.00 KiB/s, done.\nFrom github.com:its-the-vibe/SlackCommandRelay\n   9a394c2..4068c8e  main       -> origin/main\nUpdating 9a394c2..4068c8e\nFast-forward\n docker-compose.yml | 1 +\n main.go            | 9 +++++++--\n 2 files changed, 8 insertions(+), 2 deletions(-)\n"
@@ -256,7 +264,7 @@ When a notification includes an optional `taskId` field, Poppit will publish the
 ```
 
 Fields:
-- `taskId`: The task identifier from the notification
+- `metadata`: The metadata object from the notification, returned as-is
 - `type`: The notification type
 - `command`: The executed command string
 - `output`: The combined stdout and stderr output from the command
