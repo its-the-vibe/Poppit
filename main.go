@@ -174,7 +174,7 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 		cmd.Dir = notification.Dir
 
 		// If metadata is present, capture output to publish
-		if notification.Metadata != nil {
+		if len(notification.Metadata) > 0 {
 			// Note: CombinedOutput() buffers output in memory. For commands with
 			// very large outputs, consider implementing streaming or output limits.
 			output, err := cmd.CombinedOutput()
