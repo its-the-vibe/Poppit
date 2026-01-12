@@ -97,9 +97,9 @@ func loadConfig() Config {
 func publishCompletionMessage(ctx context.Context, rdb *redis.Client, config Config, notification Notification, success bool, errMsg string) error {
 	var messageText string
 	if success {
-		messageText = fmt.Sprintf("✅ Commands completed successfully for `%s` on branch `%s`", notification.Repo, notification.Branch)
+		messageText = fmt.Sprintf("✅ `%s` commands completed successfully for `%s`", notification.Type, notification.Repo)
 	} else {
-		messageText = fmt.Sprintf("❌ Commands failed for `%s` on branch `%s`: %s", notification.Repo, notification.Branch, errMsg)
+		messageText = fmt.Sprintf("❌ `%s` commands failed for `%s`: %s", notification.Type, notification.Repo, errMsg)
 	}
 
 	completionMsg := CompletionMessage{
@@ -174,7 +174,7 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 		cmd.Dir = notification.Dir
 
 		// If metadata is present, capture output to publish
-		if notification.Metadata != nil && len(notification.Metadata) > 0 {
+		if len(notification.Metadata) > 0 {
 			// Note: CombinedOutput() buffers output in memory. For commands with
 			// very large outputs, consider implementing streaming or output limits.
 			output, err := cmd.CombinedOutput()
