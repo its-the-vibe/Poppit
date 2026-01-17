@@ -259,7 +259,8 @@ When a notification includes an optional `metadata` field, Poppit will publish t
   },
   "type": "git-webhook",
   "command": "git pull",
-  "output": "remote: Enumerating objects: 7, done.\nremote: Counting objects: 100% (7/7), done.\nremote: Compressing objects: 100% (1/1), done.\nremote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)\nUnpacking objects: 100% (4/4), 496 bytes | 49.00 KiB/s, done.\nFrom github.com:its-the-vibe/SlackCommandRelay\n   9a394c2..4068c8e  main       -> origin/main\nUpdating 9a394c2..4068c8e\nFast-forward\n docker-compose.yml | 1 +\n main.go            | 9 +++++++--\n 2 files changed, 8 insertions(+), 2 deletions(-)\n"
+  "output": "remote: Enumerating objects: 7, done.\nremote: Counting objects: 100% (7/7), done.\nremote: Compressing objects: 100% (1/1), done.\nremote: Total 4 (delta 3), reused 4 (delta 3), pack-reused 0 (from 0)\nUnpacking objects: 100% (4/4), 496 bytes | 49.00 KiB/s, done.\nFrom github.com:its-the-vibe/SlackCommandRelay\n   9a394c2..4068c8e  main       -> origin/main\nUpdating 9a394c2..4068c8e\nFast-forward\n docker-compose.yml | 1 +\n main.go            | 9 +++++++--\n 2 files changed, 8 insertions(+), 2 deletions(-)\n",
+  "stderr": ""
 }
 ```
 
@@ -267,7 +268,8 @@ Fields:
 - `metadata`: The metadata object from the notification, returned as-is
 - `type`: The notification type
 - `command`: The executed command string
-- `output`: The combined stdout and stderr output from the command
+- `output`: The stdout output from the command
+- `stderr`: The stderr output from the command
 
 **How to Subscribe to Command Output:**
 

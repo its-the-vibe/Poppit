@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -47,6 +48,7 @@ type CommandOutput struct {
 	Type     string                 `json:"type"`
 	Command  string                 `json:"command"`
 	Output   string                 `json:"output"`
+	StdErr   string                 `json:"stderr"`
 }
 
 func loadConfig() Config {
@@ -128,12 +130,13 @@ func publishCompletionMessage(ctx context.Context, rdb *redis.Client, config Con
 	return nil
 }
 
-func publishCommandOutput(ctx context.Context, rdb *redis.Client, config Config, notification Notification, command string, output string) error {
+func publishCommandOutput(ctx context.Context, rdb *redis.Client, config Config, notification Notification, command string, output string, stdErr string) error {
 	cmdOutput := CommandOutput{
 		Metadata: notification.Metadata,
 		Type:     notification.Type,
 		Command:  command,
 		Output:   output,
+		StdErr:   stdErr,
 	}
 
 	msgJSON, err := json.Marshal(cmdOutput)
@@ -175,18 +178,27 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 
 		// If metadata is present, capture output to publish
 		if len(notification.Metadata) > 0 {
-			// Note: CombinedOutput() buffers output in memory. For commands with
-			// very large outputs, consider implementing streaming or output limits.
-			output, err := cmd.CombinedOutput()
-			outputStr := string(output)
+			// Note: We capture stdout and stderr separately to allow downstream
+			// consumers to process them independently. For commands with very large
+			// outputs, consider implementing streaming or output limits.
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stderr
+
+			err := cmd.Run()
+			stdoutStr := stdout.String()
+			stderrStr := stderr.String()
 
 			// Log the output to stdout for observability
-			if outputStr != "" {
-				log.Printf("Command output:\n%s", outputStr)
+			if stdoutStr != "" {
+				log.Printf("Command stdout:\n%s", stdoutStr)
+			}
+			if stderrStr != "" {
+				log.Printf("Command stderr:\n%s", stderrStr)
 			}
 
 			// Publish command output to Redis channel
-			if pubErr := publishCommandOutput(ctx, rdb, config, notification, cmdStr, outputStr); pubErr != nil {
+			if pubErr := publishCommandOutput(ctx, rdb, config, notification, cmdStr, stdoutStr, stderrStr); pubErr != nil {
 				log.Printf("Failed to publish command output: %v", pubErr)
 			}
 
