@@ -1,4 +1,4 @@
-module github.com/its-the-vibe/Poppit
+module github.com/its-the-vibe/poppit
 
 go 1.25.5
 
