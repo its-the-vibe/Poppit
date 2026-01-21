@@ -12,13 +12,13 @@ ExecStart=/opt/poppit/poppit
 Restart=always
 RestartSec=10
 
-# Environment variables
-Environment="REDIS_ADDR=localhost:6379"
-Environment="REDIS_LIST_NAME=poppit:notifications"
-Environment="REDIS_PUBLISH_LIST_NAME=slack_messages"
-Environment="SLACK_CHANNEL=#ci-cd"
-Environment="DEFAULT_TTL=86400"
-Environment="COMMAND_OUTPUT_CHANNEL=poppit:command-output"
+# Environment variables - all prefixed with POPPIT_SERVICE_ to avoid conflicts
+Environment="POPPIT_SERVICE_REDIS_ADDR=localhost:6379"
+Environment="POPPIT_SERVICE_REDIS_LIST_NAME=poppit:notifications"
+Environment="POPPIT_SERVICE_REDIS_PUBLISH_LIST_NAME=slack_messages"
+Environment="POPPIT_SERVICE_SLACK_CHANNEL=#ci-cd"
+Environment="POPPIT_SERVICE_DEFAULT_TTL=86400"
+Environment="POPPIT_SERVICE_COMMAND_OUTPUT_CHANNEL=poppit:command-output"
 
 # Security hardening
 NoNewPrivileges=true

@@ -52,33 +52,33 @@ type CommandOutput struct {
 }
 
 func loadConfig() Config {
-	redisAddr := os.Getenv("REDIS_ADDR")
+	redisAddr := os.Getenv("POPPIT_SERVICE_REDIS_ADDR")
 	if redisAddr == "" {
 		redisAddr = "localhost:6379"
 	}
 
-	listName := os.Getenv("REDIS_LIST_NAME")
+	listName := os.Getenv("POPPIT_SERVICE_REDIS_LIST_NAME")
 	if listName == "" {
 		listName = "poppit:notifications"
 	}
 
-	publishListName := os.Getenv("REDIS_PUBLISH_LIST_NAME")
+	publishListName := os.Getenv("POPPIT_SERVICE_REDIS_PUBLISH_LIST_NAME")
 	if publishListName == "" {
 		publishListName = "slack_messages"
 	}
 
-	slackChannel := os.Getenv("SLACK_CHANNEL")
+	slackChannel := os.Getenv("POPPIT_SERVICE_SLACK_CHANNEL")
 	if slackChannel == "" {
 		slackChannel = "#ci-cd"
 	}
 
-	commandOutputChannel := os.Getenv("COMMAND_OUTPUT_CHANNEL")
+	commandOutputChannel := os.Getenv("POPPIT_SERVICE_COMMAND_OUTPUT_CHANNEL")
 	if commandOutputChannel == "" {
 		commandOutputChannel = "poppit:command-output"
 	}
 
 	defaultTTL := 24 * 60 * 60
-	if ttlStr := os.Getenv("DEFAULT_TTL"); ttlStr != "" {
+	if ttlStr := os.Getenv("POPPIT_SERVICE_DEFAULT_TTL"); ttlStr != "" {
 		if ttlVal, err := strconv.Atoi(ttlStr); err == nil && ttlVal > 0 {
 			defaultTTL = ttlVal
 		}
@@ -86,7 +86,7 @@ func loadConfig() Config {
 
 	return Config{
 		RedisAddr:            redisAddr,
-		RedisPassword:        os.Getenv("REDIS_PASSWORD"),
+		RedisPassword:        os.Getenv("POPPIT_SERVICE_REDIS_PASSWORD"),
 		RedisDB:              0,
 		ListName:             listName,
 		PublishListName:      publishListName,
