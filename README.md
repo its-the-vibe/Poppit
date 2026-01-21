@@ -31,7 +31,7 @@ go build -o poppit .
 
 3. Run with custom configuration:
 ```bash
-REDIS_ADDR=localhost:6379 REDIS_LIST_NAME=poppit:notifications ./poppit
+POPPIT_SERVICE_REDIS_ADDR=localhost:6379 POPPIT_SERVICE_REDIS_LIST_NAME=poppit:notifications ./poppit
 ```
 
 ### Testing
@@ -92,9 +92,9 @@ sudo systemctl daemon-reload
 
 Edit `/etc/systemd/system/poppit.service` to set your environment variables:
 
-- `REDIS_ADDR`: Your Redis server address
-- `REDIS_PASSWORD`: Your Redis password (if required)
-- `REDIS_LIST_NAME`: Redis list name to monitor
+- `POPPIT_SERVICE_REDIS_ADDR`: Your Redis server address
+- `POPPIT_SERVICE_REDIS_PASSWORD`: Your Redis password (if required)
+- `POPPIT_SERVICE_REDIS_LIST_NAME`: Redis list name to monitor
 - Other configuration variables as needed
 
 For Redis authentication, you can also use systemd's environment file:
@@ -106,7 +106,7 @@ sudo nano /etc/poppit/poppit.env
 
 Add your sensitive variables:
 ```
-REDIS_PASSWORD=your-secret-password
+POPPIT_SERVICE_REDIS_PASSWORD=your-secret-password
 ```
 
 Then update the service file to include:
@@ -156,15 +156,15 @@ sudo systemctl restart poppit
 
 ## Configuration
 
-Configuration is done via environment variables:
+Configuration is done via environment variables. All variables are prefixed with `POPPIT_SERVICE_` to avoid conflicts with environment variables used by executed commands:
 
-- `REDIS_ADDR`: Redis server address (default: `localhost:6379`)
-- `REDIS_PASSWORD`: Redis password (default: empty)
-- `REDIS_LIST_NAME`: Redis list name to pop from (default: `poppit:notifications`)
-- `REDIS_PUBLISH_LIST_NAME`: Redis list name to publish completion messages to (default: `slack_messages`)
-- `SLACK_CHANNEL`: Slack channel for completion notifications (default: `#ci-cd`)
-- `DEFAULT_TTL`: Default TTL (time-to-live) in seconds for completion messages (default: `86400`)
-- `COMMAND_OUTPUT_CHANNEL`: Redis channel to publish command output to when metadata is present (default: `poppit:command-output`)
+- `POPPIT_SERVICE_REDIS_ADDR`: Redis server address (default: `localhost:6379`)
+- `POPPIT_SERVICE_REDIS_PASSWORD`: Redis password (default: empty)
+- `POPPIT_SERVICE_REDIS_LIST_NAME`: Redis list name to pop from (default: `poppit:notifications`)
+- `POPPIT_SERVICE_REDIS_PUBLISH_LIST_NAME`: Redis list name to publish completion messages to (default: `slack_messages`)
+- `POPPIT_SERVICE_SLACK_CHANNEL`: Slack channel for completion notifications (default: `#ci-cd`)
+- `POPPIT_SERVICE_DEFAULT_TTL`: Default TTL (time-to-live) in seconds for completion messages (default: `86400`)
+- `POPPIT_SERVICE_COMMAND_OUTPUT_CHANNEL`: Redis channel to publish command output to when metadata is present (default: `poppit:command-output`)
 
 ## Notification Format
 
