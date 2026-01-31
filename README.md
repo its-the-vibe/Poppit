@@ -39,7 +39,7 @@ POPPIT_SERVICE_REDIS_ADDR=localhost:6379 POPPIT_SERVICE_REDIS_LIST_NAME=poppit:n
 To test the service, push a notification to Redis:
 
 ```bash
-redis-cli LPUSH poppit:notifications '{"repo":"its-the-vibe/github-dispatcher","branch":"refs/heads/main","type":"git-webhook","dir":"/tmp","commands":["echo hello","echo world"]}'
+redis-cli RPUSH poppit:notifications '{"repo":"its-the-vibe/github-dispatcher","branch":"refs/heads/main","type":"git-webhook","dir":"/tmp","commands":["echo hello","echo world"]}'
 ```
 
 ## Installing as a systemd Service
@@ -198,7 +198,7 @@ Fields:
 
 ## How It Works
 
-1. Poppit connects to Redis and continuously polls for messages on the configured list
+1. Poppit connects to Redis and continuously polls for messages on the configured list using `BLPOP` (blocking left pop)
 2. When a message is received, it parses the JSON notification
 3. It verifies the specified working directory exists
 4. It executes each command sequentially in the specified directory
@@ -206,6 +206,14 @@ Fields:
 6. If a command fails, execution stops and the error is logged
 7. After all commands complete (success or failure), a completion message is published to Redis, including a TTL field
 8. The completion message is formatted for [SlackLiner](https://github.com/its-the-vibe/SlackLiner) to send to Slack
+
+### Redis List Pattern
+
+Poppit uses a FIFO (First In, First Out) queue pattern:
+- **Clients**: Use `RPUSH` to add notifications to the right end of the list
+- **Service**: Uses `BLPOP` to consume notifications from the left end of the list
+
+This ensures that notifications are processed in the order they are received, preventing race conditions and maintaining command execution order.
 
 ## Completion Messages
 

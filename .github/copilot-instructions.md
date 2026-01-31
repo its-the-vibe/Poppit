@@ -50,7 +50,7 @@ Poppit is a Go-based service that pops JSON notifications from a Redis list and 
 ### Redis Patterns
 - Use `context.Context` for all Redis operations
 - Handle `redis.Nil` separately from other errors (indicates no data available)
-- Use blocking operations like `BRPOP` with appropriate timeouts
+- Use blocking operations like `BLPOP` with appropriate timeouts
 - Always close Redis connections on shutdown
 
 ## Building and Testing
@@ -73,7 +73,7 @@ docker compose up -d
 docker compose logs -f poppit
 
 # Push test notification
-docker compose exec redis redis-cli LPUSH poppit:notifications '{"command":"echo","args":["test"]}'
+docker compose exec redis redis-cli RPUSH poppit:notifications '{"command":"echo","args":["test"]}'
 
 # Stop services
 docker compose down
