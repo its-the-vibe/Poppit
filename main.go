@@ -251,8 +251,8 @@ func main() {
 	// Start popping messages
 	go func() {
 		for {
-			// BRPOP blocks until a message is available or timeout occurs
-			result, err := rdb.BRPop(ctx, 5*time.Second, config.ListName).Result()
+			// BLPOP blocks until a message is available or timeout occurs
+			result, err := rdb.BLPop(ctx, 5*time.Second, config.ListName).Result()
 			if err == redis.Nil {
 				// Timeout - no message available
 				continue
