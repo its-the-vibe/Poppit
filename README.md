@@ -223,8 +223,9 @@ After processing a notification, Poppit publishes a completion message to Redis 
 ```json
 {
   "channel": "#ci-cd",
-  "text": "✅ Commands completed successfully for its-the-vibe/repo on branch refs/heads/main",
+  "text": "✅ Commands completed successfully for its-the-vibe/repo on branch refs/heads/main (Duration: 12s)",
   "ttl": 86400,
+  "duration": "12s",
   "metadata": {
     "event_type": "git-webhook",
     "event_payload": {
@@ -240,8 +241,9 @@ After processing a notification, Poppit publishes a completion message to Redis 
 ```json
 {
   "channel": "#ci-cd",
-  "text": "❌ Commands failed for its-the-vibe/repo on branch refs/heads/main: exit status 1",
+  "text": "❌ Commands failed for its-the-vibe/repo on branch refs/heads/main: exit status 1 (Duration: 5s)",
   "ttl": 86400,
+  "duration": "5s",
   "metadata": {
     "event_type": "git-webhook",
     "event_payload": {
@@ -252,6 +254,13 @@ After processing a notification, Poppit publishes a completion message to Redis 
   }
 }
 ```
+
+Fields:
+- `channel`: The Slack channel where the message will be posted
+- `text`: The formatted message text including operation result and duration
+- `ttl`: Time-to-live in seconds for the message
+- `duration`: Human-readable duration of the operation (e.g., "12s", "2m 15s", "1h 5m 30s")
+- `metadata`: Additional context about the event including type and payload details
 
 ## Command Output Publishing
 
