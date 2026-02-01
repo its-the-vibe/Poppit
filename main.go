@@ -54,7 +54,7 @@ type CommandOutput struct {
 
 func formatDuration(d time.Duration) string {
 	d = d.Round(time.Second)
-	
+
 	hours := d / time.Hour
 	d -= hours * time.Hour
 	minutes := d / time.Minute
@@ -63,7 +63,8 @@ func formatDuration(d time.Duration) string {
 
 	if hours > 0 {
 		return fmt.Sprintf("%dh %dm %ds", hours, minutes, seconds)
-	} else if minutes > 0 {
+	}
+	if minutes > 0 {
 		return fmt.Sprintf("%dm %ds", minutes, seconds)
 	}
 	return fmt.Sprintf("%ds", seconds)
