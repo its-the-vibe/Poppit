@@ -40,6 +40,7 @@ type CompletionMessage struct {
 	Channel  string                 `json:"channel"`
 	Text     string                 `json:"text"`
 	TTL      int                    `json:"ttl,omitempty"`
+	Duration string                 `json:"duration,omitempty"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -49,6 +50,24 @@ type CommandOutput struct {
 	Command  string                 `json:"command"`
 	Output   string                 `json:"output"`
 	StdErr   string                 `json:"stderr"`
+}
+
+func formatDuration(d time.Duration) string {
+	d = d.Round(time.Second)
+
+	hours := d / time.Hour
+	d -= hours * time.Hour
+	minutes := d / time.Minute
+	d -= minutes * time.Minute
+	seconds := d / time.Second
+
+	if hours > 0 {
+		return fmt.Sprintf("%dh %dm %ds", hours, minutes, seconds)
+	}
+	if minutes > 0 {
+		return fmt.Sprintf("%dm %ds", minutes, seconds)
+	}
+	return fmt.Sprintf("%ds", seconds)
 }
 
 func loadConfig() Config {
@@ -96,18 +115,20 @@ func loadConfig() Config {
 	}
 }
 
-func publishCompletionMessage(ctx context.Context, rdb *redis.Client, config Config, notification Notification, success bool, errMsg string) error {
+func publishCompletionMessage(ctx context.Context, rdb *redis.Client, config Config, notification Notification, success bool, errMsg string, duration time.Duration) error {
+	durationStr := formatDuration(duration)
 	var messageText string
 	if success {
-		messageText = fmt.Sprintf("✅ `%s` commands completed successfully for `%s`", notification.Type, notification.Repo)
+		messageText = fmt.Sprintf("✅ `%s` commands completed successfully for `%s` (Duration: %s)", notification.Type, notification.Repo, durationStr)
 	} else {
-		messageText = fmt.Sprintf("❌ `%s` commands failed for `%s`: %s", notification.Type, notification.Repo, errMsg)
+		messageText = fmt.Sprintf("❌ `%s` commands failed for `%s`: %s (Duration: %s)", notification.Type, notification.Repo, errMsg, durationStr)
 	}
 
 	completionMsg := CompletionMessage{
-		Channel: config.SlackChannel,
-		Text:    messageText,
-		TTL:     config.DefaultTTL,
+		Channel:  config.SlackChannel,
+		Text:     messageText,
+		TTL:      config.DefaultTTL,
+		Duration: durationStr,
 		Metadata: map[string]interface{}{
 			"event_type": notification.Type,
 			"event_payload": map[string]interface{}{
@@ -272,6 +293,9 @@ func main() {
 			log.Println("=== New Notification ===")
 			log.Printf("Raw message: %s", message)
 
+			// Start timing the notification processing
+			startTime := time.Now()
+
 			// Try to parse as JSON
 			var notification Notification
 			if err := json.Unmarshal([]byte(message), &notification); err != nil {
@@ -288,14 +312,17 @@ func main() {
 
 			// Execute the commands
 			if err := executeCommands(ctx, rdb, config, notification); err != nil {
-				log.Printf("Failed to execute commands: %v", err)
+				duration := time.Since(startTime)
+				log.Printf("Failed to execute commands: %v (Duration: %s)", err, formatDuration(duration))
 				// Publish failure message
-				if pubErr := publishCompletionMessage(ctx, rdb, config, notification, false, err.Error()); pubErr != nil {
+				if pubErr := publishCompletionMessage(ctx, rdb, config, notification, false, err.Error(), duration); pubErr != nil {
 					log.Printf("Failed to publish completion message: %v", pubErr)
 				}
 			} else {
+				duration := time.Since(startTime)
+				log.Printf("All commands completed successfully (Duration: %s)", formatDuration(duration))
 				// Publish success message
-				if pubErr := publishCompletionMessage(ctx, rdb, config, notification, true, ""); pubErr != nil {
+				if pubErr := publishCompletionMessage(ctx, rdb, config, notification, true, "", duration); pubErr != nil {
 					log.Printf("Failed to publish completion message: %v", pubErr)
 				}
 			}
