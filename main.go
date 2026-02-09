@@ -105,6 +105,8 @@ func loadConfig() Config {
 		}
 	}
 
+	// Parse PUBLISH_COMPLETION_MESSAGE flag (default: true for backward compatibility)
+	// Accepts "false" or "0" (case-insensitive) to disable, any other value enables
 	publishCompletionMessageEnabled := true
 	if publishStr := os.Getenv("POPPIT_SERVICE_PUBLISH_COMPLETION_MESSAGE"); publishStr != "" {
 		lowerVal := strings.ToLower(publishStr)
