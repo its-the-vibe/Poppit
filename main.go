@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -106,7 +107,8 @@ func loadConfig() Config {
 
 	publishCompletionMessageEnabled := true
 	if publishStr := os.Getenv("POPPIT_SERVICE_PUBLISH_COMPLETION_MESSAGE"); publishStr != "" {
-		publishCompletionMessageEnabled = publishStr != "false" && publishStr != "0"
+		lowerVal := strings.ToLower(publishStr)
+		publishCompletionMessageEnabled = lowerVal != "false" && lowerVal != "0"
 	}
 
 	return Config{
