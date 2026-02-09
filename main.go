@@ -104,9 +104,9 @@ func loadConfig() Config {
 		}
 	}
 
-	publishCompletionMessage := true
+	publishCompletionMessageEnabled := true
 	if publishStr := os.Getenv("POPPIT_SERVICE_PUBLISH_COMPLETION_MESSAGE"); publishStr != "" {
-		publishCompletionMessage = publishStr != "false" && publishStr != "0"
+		publishCompletionMessageEnabled = publishStr != "false" && publishStr != "0"
 	}
 
 	return Config{
@@ -118,7 +118,7 @@ func loadConfig() Config {
 		SlackChannel:             slackChannel,
 		DefaultTTL:               defaultTTL,
 		CommandOutputChannel:     commandOutputChannel,
-		PublishCompletionMessage: publishCompletionMessage,
+		PublishCompletionMessage: publishCompletionMessageEnabled,
 	}
 }
 
