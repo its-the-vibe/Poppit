@@ -17,14 +17,15 @@ import (
 )
 
 type Config struct {
-	RedisAddr            string
-	RedisPassword        string
-	RedisDB              int
-	ListName             string
-	PublishListName      string
-	SlackChannel         string
-	DefaultTTL           int
-	CommandOutputChannel string
+	RedisAddr                  string
+	RedisPassword              string
+	RedisDB                    int
+	ListName                   string
+	PublishListName            string
+	SlackChannel               string
+	DefaultTTL                 int
+	CommandOutputChannel       string
+	PublishCompletionMessage   bool
 }
 
 type Notification struct {
@@ -103,15 +104,21 @@ func loadConfig() Config {
 		}
 	}
 
+	publishCompletionMessage := true
+	if publishStr := os.Getenv("POPPIT_SERVICE_PUBLISH_COMPLETION_MESSAGE"); publishStr != "" {
+		publishCompletionMessage = publishStr != "false" && publishStr != "0"
+	}
+
 	return Config{
-		RedisAddr:            redisAddr,
-		RedisPassword:        os.Getenv("POPPIT_SERVICE_REDIS_PASSWORD"),
-		RedisDB:              0,
-		ListName:             listName,
-		PublishListName:      publishListName,
-		SlackChannel:         slackChannel,
-		DefaultTTL:           defaultTTL,
-		CommandOutputChannel: commandOutputChannel,
+		RedisAddr:                redisAddr,
+		RedisPassword:            os.Getenv("POPPIT_SERVICE_REDIS_PASSWORD"),
+		RedisDB:                  0,
+		ListName:                 listName,
+		PublishListName:          publishListName,
+		SlackChannel:             slackChannel,
+		DefaultTTL:               defaultTTL,
+		CommandOutputChannel:     commandOutputChannel,
+		PublishCompletionMessage: publishCompletionMessage,
 	}
 }
 
@@ -314,16 +321,20 @@ func main() {
 			if err := executeCommands(ctx, rdb, config, notification); err != nil {
 				duration := time.Since(startTime)
 				log.Printf("Failed to execute commands: %v (Duration: %s)", err, formatDuration(duration))
-				// Publish failure message
-				if pubErr := publishCompletionMessage(ctx, rdb, config, notification, false, err.Error(), duration); pubErr != nil {
-					log.Printf("Failed to publish completion message: %v", pubErr)
+				// Publish failure message if enabled
+				if config.PublishCompletionMessage {
+					if pubErr := publishCompletionMessage(ctx, rdb, config, notification, false, err.Error(), duration); pubErr != nil {
+						log.Printf("Failed to publish completion message: %v", pubErr)
+					}
 				}
 			} else {
 				duration := time.Since(startTime)
 				log.Printf("All commands completed successfully (Duration: %s)", formatDuration(duration))
-				// Publish success message
-				if pubErr := publishCompletionMessage(ctx, rdb, config, notification, true, "", duration); pubErr != nil {
-					log.Printf("Failed to publish completion message: %v", pubErr)
+				// Publish success message if enabled
+				if config.PublishCompletionMessage {
+					if pubErr := publishCompletionMessage(ctx, rdb, config, notification, true, "", duration); pubErr != nil {
+						log.Printf("Failed to publish completion message: %v", pubErr)
+					}
 				}
 			}
 
