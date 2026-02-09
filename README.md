@@ -165,6 +165,7 @@ Configuration is done via environment variables. All variables are prefixed with
 - `POPPIT_SERVICE_SLACK_CHANNEL`: Slack channel for completion notifications (default: `#ci-cd`)
 - `POPPIT_SERVICE_DEFAULT_TTL`: Default TTL (time-to-live) in seconds for completion messages (default: `86400`)
 - `POPPIT_SERVICE_COMMAND_OUTPUT_CHANNEL`: Redis channel to publish command output to when metadata is present (default: `poppit:command-output`)
+- `POPPIT_SERVICE_PUBLISH_COMPLETION_MESSAGE`: Enable/disable publishing of completion messages to Redis (default: `true`). Set to `false` or `0` to disable (case-insensitive).
 
 ## Notification Format
 
