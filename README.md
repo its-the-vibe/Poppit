@@ -166,6 +166,8 @@ Configuration is done via environment variables. All variables are prefixed with
 - `POPPIT_SERVICE_DEFAULT_TTL`: Default TTL (time-to-live) in seconds for completion messages (default: `86400`)
 - `POPPIT_SERVICE_COMMAND_OUTPUT_CHANNEL`: Redis channel to publish command output to when metadata is present (default: `poppit:command-output`)
 - `POPPIT_SERVICE_PUBLISH_COMPLETION_MESSAGE`: Enable/disable publishing of completion messages to Redis (default: `true`). Set to `false` or `0` to disable (case-insensitive).
+- `POPPIT_SERVICE_EXECUTION_EVENTS_CHANNEL`: Redis channel to publish execution lifecycle events (start/end of batch execution). If not set, no events are published.
+- `POPPIT_SERVICE_CURRENT_COMMAND_KEY`: Redis key used to store the current command execution state. If not set, no state is tracked.
 
 ## Notification Format
 
@@ -307,6 +309,54 @@ for msg := range ch {
     json.Unmarshal([]byte(msg.Payload), &cmdOutput)
     // Process the command output
 }
+```
+
+## Execution Observability
+
+Poppit can publish real-time execution lifecycle events and maintain a current command state key in Redis to improve visibility into batch execution.
+
+### Execution Events Channel
+
+When `POPPIT_SERVICE_EXECUTION_EVENTS_CHANNEL` is set, Poppit publishes a JSON event to that Redis channel at the start and end of each `executeCommands` call (including on failure).
+
+**Event Payload Format:**
+```json
+{
+  "event": "start",
+  "timestamp": "2024-12-14T20:00:00Z"
+}
+```
+
+- `event`: Either `"start"` or `"end"`
+- `timestamp`: UTC timestamp in RFC 3339 format
+
+**How to Subscribe:**
+```bash
+redis-cli SUBSCRIBE poppit:execution-events
+```
+
+### Current Command State Key
+
+When `POPPIT_SERVICE_CURRENT_COMMAND_KEY` is set, Poppit writes the current execution state to that Redis key before each command and deletes the key when all commands finish (or on failure).
+
+**State Payload Format:**
+```json
+{
+  "batch_started_at": "2024-12-14T20:00:00Z",
+  "command_started_at": "2024-12-14T20:00:01Z",
+  "commands": ["git pull", "npm install", "npm test"],
+  "command_index": 1
+}
+```
+
+- `batch_started_at`: UTC timestamp when the batch started
+- `command_started_at`: UTC timestamp when the current command started
+- `commands`: Full list of commands in the notification
+- `command_index`: Zero-based index of the command currently being executed
+
+**How to Read:**
+```bash
+redis-cli GET poppit:current-command
 ```
 
 ## Security Considerations

@@ -17,6 +17,11 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const (
+	executionEventStart = "start"
+	executionEventEnd   = "end"
+)
+
 type Config struct {
 	RedisAddr                  string
 	RedisPassword              string
@@ -27,6 +32,8 @@ type Config struct {
 	DefaultTTL                 int
 	CommandOutputChannel       string
 	PublishCompletionMessage   bool
+	ExecutionEventsChannel     string
+	CurrentCommandKey          string
 }
 
 type Notification struct {
@@ -52,6 +59,18 @@ type CommandOutput struct {
 	Command  string                 `json:"command"`
 	Output   string                 `json:"output"`
 	StdErr   string                 `json:"stderr"`
+}
+
+type ExecutionEvent struct {
+	Event     string    `json:"event"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+type CurrentCommandState struct {
+	BatchStartedAt   time.Time `json:"batch_started_at"`
+	CommandStartedAt time.Time `json:"command_started_at"`
+	Commands         []string  `json:"commands"`
+	CommandIndex     int       `json:"command_index"`
 }
 
 func formatDuration(d time.Duration) string {
@@ -123,6 +142,8 @@ func loadConfig() Config {
 		DefaultTTL:               defaultTTL,
 		CommandOutputChannel:     commandOutputChannel,
 		PublishCompletionMessage: publishCompletionMessageEnabled,
+		ExecutionEventsChannel:   os.Getenv("POPPIT_SERVICE_EXECUTION_EVENTS_CHANNEL"),
+		CurrentCommandKey:        os.Getenv("POPPIT_SERVICE_CURRENT_COMMAND_KEY"),
 	}
 }
 
@@ -184,6 +205,57 @@ func publishCommandOutput(ctx context.Context, rdb *redis.Client, config Config,
 	return nil
 }
 
+func publishExecutionEvent(ctx context.Context, rdb *redis.Client, config Config, event string) {
+	if config.ExecutionEventsChannel == "" {
+		return
+	}
+
+	payload := ExecutionEvent{
+		Event:     event,
+		Timestamp: time.Now().UTC(),
+	}
+
+	msgJSON, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("Failed to marshal execution event: %v", err)
+		return
+	}
+
+	if err := rdb.Publish(ctx, config.ExecutionEventsChannel, msgJSON).Err(); err != nil {
+		log.Printf("Failed to publish execution event to channel %s: %v", config.ExecutionEventsChannel, err)
+		return
+	}
+
+	log.Printf("Published execution event '%s' to channel %s", event, config.ExecutionEventsChannel)
+}
+
+func updateCurrentCommandState(ctx context.Context, rdb *redis.Client, config Config, state CurrentCommandState) {
+	if config.CurrentCommandKey == "" {
+		return
+	}
+
+	msgJSON, err := json.Marshal(state)
+	if err != nil {
+		log.Printf("Failed to marshal current command state: %v", err)
+		return
+	}
+
+	if err := rdb.Set(ctx, config.CurrentCommandKey, msgJSON, time.Duration(config.DefaultTTL)*time.Second).Err(); err != nil {
+		log.Printf("Failed to update current command state key %s: %v", config.CurrentCommandKey, err)
+		return
+	}
+}
+
+func clearCurrentCommandState(ctx context.Context, rdb *redis.Client, config Config) {
+	if config.CurrentCommandKey == "" {
+		return
+	}
+
+	if err := rdb.Del(ctx, config.CurrentCommandKey).Err(); err != nil {
+		log.Printf("Failed to clear current command state key %s: %v", config.CurrentCommandKey, err)
+	}
+}
+
 func executeCommands(ctx context.Context, rdb *redis.Client, config Config, notification Notification) error {
 	log.Printf("Executing commands for repo: %s, branch: %s", notification.Repo, notification.Branch)
 	log.Printf("Working directory: %s", notification.Dir)
@@ -197,6 +269,9 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 		return err
 	}
 
+	batchStartedAt := time.Now().UTC()
+	publishExecutionEvent(ctx, rdb, config, executionEventStart)
+
 	// Execute each command sequentially
 	// Note: Commands are executed via shell (sh -c) to support shell features like
 	// pipes, redirects, and environment variable expansion. This is intentional for
@@ -204,6 +279,13 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 	// consider command whitelisting or argument parsing instead of shell execution.
 	for i, cmdStr := range notification.Commands {
 		log.Printf("Executing command %d/%d: %s", i+1, len(notification.Commands), cmdStr)
+
+		updateCurrentCommandState(ctx, rdb, config, CurrentCommandState{
+			BatchStartedAt:   batchStartedAt,
+			CommandStartedAt: time.Now().UTC(),
+			Commands:         notification.Commands,
+			CommandIndex:     i,
+		})
 
 		cmd := exec.Command("sh", "-c", cmdStr)
 		cmd.Dir = notification.Dir
@@ -236,6 +318,8 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 
 			if err != nil {
 				log.Printf("Command failed: %s (error: %v)", cmdStr, err)
+				clearCurrentCommandState(ctx, rdb, config)
+				publishExecutionEvent(ctx, rdb, config, executionEventEnd)
 				return err
 			}
 		} else {
@@ -245,12 +329,16 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 
 			if err := cmd.Run(); err != nil {
 				log.Printf("Command failed: %s (error: %v)", cmdStr, err)
+				clearCurrentCommandState(ctx, rdb, config)
+				publishExecutionEvent(ctx, rdb, config, executionEventEnd)
 				return err
 			}
 		}
 		log.Printf("Command %d completed successfully", i+1)
 	}
 
+	clearCurrentCommandState(ctx, rdb, config)
+	publishExecutionEvent(ctx, rdb, config, executionEventEnd)
 	log.Println("All commands executed successfully")
 	return nil
 }
