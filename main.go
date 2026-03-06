@@ -67,6 +67,7 @@ type ExecutionEvent struct {
 }
 
 type CurrentCommandState struct {
+	Repo             string    `json:"repo"`
 	BatchStartedAt   time.Time `json:"batch_started_at"`
 	CommandStartedAt time.Time `json:"command_started_at"`
 	Commands         []string  `json:"commands"`
@@ -281,11 +282,12 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 		log.Printf("Executing command %d/%d: %s", i+1, len(notification.Commands), cmdStr)
 
 		updateCurrentCommandState(ctx, rdb, config, CurrentCommandState{
-			BatchStartedAt:   batchStartedAt,
-			CommandStartedAt: time.Now().UTC(),
-			Commands:         notification.Commands,
-			CommandIndex:     i,
-		})
+				Repo:             notification.Repo,
+				BatchStartedAt:   batchStartedAt,
+				CommandStartedAt: time.Now().UTC(),
+				Commands:         notification.Commands,
+				CommandIndex:     i,
+			})
 
 		cmd := exec.Command("sh", "-c", cmdStr)
 		cmd.Dir = notification.Dir
