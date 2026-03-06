@@ -18,22 +18,23 @@ import (
 )
 
 const (
-	executionEventStart = "start"
-	executionEventEnd   = "end"
+	executionEventStart  = "start"
+	executionEventUpdate = "update"
+	executionEventEnd    = "end"
 )
 
 type Config struct {
-	RedisAddr                  string
-	RedisPassword              string
-	RedisDB                    int
-	ListName                   string
-	PublishListName            string
-	SlackChannel               string
-	DefaultTTL                 int
-	CommandOutputChannel       string
-	PublishCompletionMessage   bool
-	ExecutionEventsChannel     string
-	CurrentCommandKey          string
+	RedisAddr                string
+	RedisPassword            string
+	RedisDB                  int
+	ListName                 string
+	PublishListName          string
+	SlackChannel             string
+	DefaultTTL               int
+	CommandOutputChannel     string
+	PublishCompletionMessage bool
+	ExecutionEventsChannel   string
+	CurrentCommandKey        string
 }
 
 type Notification struct {
@@ -282,12 +283,12 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 		log.Printf("Executing command %d/%d: %s", i+1, len(notification.Commands), cmdStr)
 
 		updateCurrentCommandState(ctx, rdb, config, CurrentCommandState{
-				Repo:             notification.Repo,
-				BatchStartedAt:   batchStartedAt,
-				CommandStartedAt: time.Now().UTC(),
-				Commands:         notification.Commands,
-				CommandIndex:     i,
-			})
+			Repo:             notification.Repo,
+			BatchStartedAt:   batchStartedAt,
+			CommandStartedAt: time.Now().UTC(),
+			Commands:         notification.Commands,
+			CommandIndex:     i,
+		})
 
 		cmd := exec.Command("sh", "-c", cmdStr)
 		cmd.Dir = notification.Dir
@@ -336,6 +337,7 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 				return err
 			}
 		}
+		publishExecutionEvent(ctx, rdb, config, executionEventUpdate)
 		log.Printf("Command %d completed successfully", i+1)
 	}
 
