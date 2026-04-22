@@ -1,4 +1,7 @@
 # Poppit
+
+[![CI](https://github.com/its-the-vibe/Poppit/actions/workflows/ci.yaml/badge.svg)](https://github.com/its-the-vibe/Poppit/actions/workflows/ci.yaml)
+
 A service written in Go that pops JSON notifications from a Redis list and executes commands listed in the payload - the original purpose is to run a CI/CD pipeline.
 
 ## Features
