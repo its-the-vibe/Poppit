@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"testing"
@@ -188,6 +189,10 @@ func TestGetCommandStatusCode(t *testing.T) {
 
 	if statusCode := getCommandStatusCode(err); statusCode != 7 {
 		t.Errorf("getCommandStatusCode(exit 7) = %d, want 7", statusCode)
+	}
+
+	if statusCode := getCommandStatusCode(errors.New("non-exit error")); statusCode != -1 {
+		t.Errorf("getCommandStatusCode(non-exit error) = %d, want -1", statusCode)
 	}
 }
 
