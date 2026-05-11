@@ -1,7 +1,10 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"os"
+	"os/exec"
 	"testing"
 	"time"
 )
@@ -170,5 +173,54 @@ func TestLoadConfig_ZeroTTLIgnored(t *testing.T) {
 	cfg := loadConfig()
 	if cfg.DefaultTTL != 86400 {
 		t.Errorf("DefaultTTL with zero env = %d, want default 86400", cfg.DefaultTTL)
+	}
+}
+
+func TestGetCommandStatusCode(t *testing.T) {
+	if statusCode := getCommandStatusCode(nil); statusCode != 0 {
+		t.Errorf("getCommandStatusCode(nil) = %d, want 0", statusCode)
+	}
+
+	cmd := exec.Command("sh", "-c", "exit 7")
+	err := cmd.Run()
+	if err == nil {
+		t.Fatal("expected command to fail")
+	}
+
+	if statusCode := getCommandStatusCode(err); statusCode != 7 {
+		t.Errorf("getCommandStatusCode(exit 7) = %d, want 7", statusCode)
+	}
+
+	if statusCode := getCommandStatusCode(errors.New("non-exit error")); statusCode != -1 {
+		t.Errorf("getCommandStatusCode(non-exit error) = %d, want -1", statusCode)
+	}
+}
+
+func TestCommandOutputIncludesStatusCodeJSONField(t *testing.T) {
+	cmdOutput := CommandOutput{
+		Type:       "git-webhook",
+		Command:    "git pull",
+		Output:     "ok",
+		StdErr:     "",
+		StatusCode: 0,
+	}
+
+	msgJSON, err := json.Marshal(cmdOutput)
+	if err != nil {
+		t.Fatalf("failed to marshal CommandOutput: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(msgJSON, &parsed); err != nil {
+		t.Fatalf("failed to unmarshal marshaled CommandOutput: %v", err)
+	}
+
+	got, ok := parsed["status_code"]
+	if !ok {
+		t.Fatal("status_code field missing from command output JSON")
+	}
+
+	if got != float64(0) {
+		t.Errorf("status_code = %v, want 0", got)
 	}
 }

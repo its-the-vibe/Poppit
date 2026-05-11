@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -55,11 +56,12 @@ type CompletionMessage struct {
 }
 
 type CommandOutput struct {
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
-	Type     string                 `json:"type"`
-	Command  string                 `json:"command"`
-	Output   string                 `json:"output"`
-	StdErr   string                 `json:"stderr"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	Type       string                 `json:"type"`
+	Command    string                 `json:"command"`
+	Output     string                 `json:"output"`
+	StdErr     string                 `json:"stderr"`
+	StatusCode int                    `json:"status_code"`
 }
 
 type ExecutionEvent struct {
@@ -185,13 +187,14 @@ func publishCompletionMessage(ctx context.Context, rdb *redis.Client, config Con
 	return nil
 }
 
-func publishCommandOutput(ctx context.Context, rdb *redis.Client, config Config, notification Notification, command string, output string, stdErr string) error {
+func publishCommandOutput(ctx context.Context, rdb *redis.Client, config Config, notification Notification, command string, output string, stdErr string, statusCode int) error {
 	cmdOutput := CommandOutput{
-		Metadata: notification.Metadata,
-		Type:     notification.Type,
-		Command:  command,
-		Output:   output,
-		StdErr:   stdErr,
+		Metadata:   notification.Metadata,
+		Type:       notification.Type,
+		Command:    command,
+		Output:     output,
+		StdErr:     stdErr,
+		StatusCode: statusCode,
 	}
 
 	msgJSON, err := json.Marshal(cmdOutput)
@@ -205,6 +208,19 @@ func publishCommandOutput(ctx context.Context, rdb *redis.Client, config Config,
 
 	log.Printf("Published command output to channel %s", config.CommandOutputChannel)
 	return nil
+}
+
+func getCommandStatusCode(err error) int {
+	if err == nil {
+		return 0
+	}
+
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode()
+	}
+
+	return -1
 }
 
 func publishExecutionEvent(ctx context.Context, rdb *redis.Client, config Config, event string) {
@@ -305,6 +321,7 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 			err := cmd.Run()
 			stdoutStr := stdout.String()
 			stderrStr := stderr.String()
+			statusCode := getCommandStatusCode(err)
 
 			// Log the output to stdout for observability
 			if stdoutStr != "" {
@@ -315,7 +332,7 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 			}
 
 			// Publish command output to Redis channel
-			if pubErr := publishCommandOutput(ctx, rdb, config, notification, cmdStr, stdoutStr, stderrStr); pubErr != nil {
+			if pubErr := publishCommandOutput(ctx, rdb, config, notification, cmdStr, stdoutStr, stderrStr, statusCode); pubErr != nil {
 				log.Printf("Failed to publish command output: %v", pubErr)
 			}
 
