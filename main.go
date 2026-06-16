@@ -65,8 +65,9 @@ type CommandOutput struct {
 }
 
 type ExecutionEvent struct {
-	Event     string    `json:"event"`
-	Timestamp time.Time `json:"timestamp"`
+	Event         string    `json:"event"`
+	Timestamp     time.Time `json:"timestamp"`
+	CorrelationID string    `json:"correlation_id,omitempty"`
 }
 
 type CurrentCommandState struct {
@@ -223,14 +224,15 @@ func getCommandStatusCode(err error) int {
 	return -1
 }
 
-func publishExecutionEvent(ctx context.Context, rdb *redis.Client, config Config, event string) {
+func publishExecutionEvent(ctx context.Context, rdb *redis.Client, config Config, event string, correlationID string) {
 	if config.ExecutionEventsChannel == "" {
 		return
 	}
 
 	payload := ExecutionEvent{
-		Event:     event,
-		Timestamp: time.Now().UTC(),
+		Event:         event,
+		Timestamp:     time.Now().UTC(),
+		CorrelationID: correlationID,
 	}
 
 	msgJSON, err := json.Marshal(payload)
@@ -287,8 +289,9 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 		return err
 	}
 
+	correlationID, _ := notification.Metadata["git_commit_sha"].(string)
 	batchStartedAt := time.Now().UTC()
-	publishExecutionEvent(ctx, rdb, config, executionEventStart)
+	publishExecutionEvent(ctx, rdb, config, executionEventStart, correlationID)
 
 	// Execute each command sequentially
 	// Note: Commands are executed via shell (sh -c) to support shell features like
@@ -339,7 +342,7 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 			if err != nil {
 				log.Printf("Command failed: %s (error: %v)", cmdStr, err)
 				clearCurrentCommandState(ctx, rdb, config)
-				publishExecutionEvent(ctx, rdb, config, executionEventEnd)
+				publishExecutionEvent(ctx, rdb, config, executionEventEnd, correlationID)
 				return err
 			}
 		} else {
@@ -350,16 +353,16 @@ func executeCommands(ctx context.Context, rdb *redis.Client, config Config, noti
 			if err := cmd.Run(); err != nil {
 				log.Printf("Command failed: %s (error: %v)", cmdStr, err)
 				clearCurrentCommandState(ctx, rdb, config)
-				publishExecutionEvent(ctx, rdb, config, executionEventEnd)
+				publishExecutionEvent(ctx, rdb, config, executionEventEnd, correlationID)
 				return err
 			}
 		}
-		publishExecutionEvent(ctx, rdb, config, executionEventUpdate)
+		publishExecutionEvent(ctx, rdb, config, executionEventUpdate, correlationID)
 		log.Printf("Command %d completed successfully", i+1)
 	}
 
 	clearCurrentCommandState(ctx, rdb, config)
-	publishExecutionEvent(ctx, rdb, config, executionEventEnd)
+	publishExecutionEvent(ctx, rdb, config, executionEventEnd, correlationID)
 	log.Println("All commands executed successfully")
 	return nil
 }
