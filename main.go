@@ -152,6 +152,18 @@ func loadConfig() Config {
 	}
 }
 
+// shouldPublishCompletionMessage returns false when completion messages are disabled
+// or the notification metadata contains "spam": false.
+func shouldPublishCompletionMessage(config Config, notification Notification) bool {
+	if !config.PublishCompletionMessage {
+		return false
+	}
+	if spam, ok := notification.Metadata["spam"].(bool); ok && !spam {
+		return false
+	}
+	return true
+}
+
 func publishCompletionMessage(ctx context.Context, rdb *redis.Client, config Config, notification Notification, success bool, errMsg string, duration time.Duration) error {
 	durationStr := formatDuration(duration)
 	var messageText string
@@ -438,7 +450,7 @@ func main() {
 				duration := time.Since(startTime)
 				log.Printf("Failed to execute commands: %v (Duration: %s)", err, formatDuration(duration))
 				// Publish failure message if enabled
-				if config.PublishCompletionMessage {
+				if shouldPublishCompletionMessage(config, notification) {
 					if pubErr := publishCompletionMessage(ctx, rdb, config, notification, false, err.Error(), duration); pubErr != nil {
 						log.Printf("Failed to publish completion message: %v", pubErr)
 					}
@@ -447,7 +459,7 @@ func main() {
 				duration := time.Since(startTime)
 				log.Printf("All commands completed successfully (Duration: %s)", formatDuration(duration))
 				// Publish success message if enabled
-				if config.PublishCompletionMessage {
+				if shouldPublishCompletionMessage(config, notification) {
 					if pubErr := publishCompletionMessage(ctx, rdb, config, notification, true, "", duration); pubErr != nil {
 						log.Printf("Failed to publish completion message: %v", pubErr)
 					}

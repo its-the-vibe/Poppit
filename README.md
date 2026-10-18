@@ -223,6 +223,8 @@ This ensures that notifications are processed in the order they are received, pr
 
 ## Completion Messages
 
+To suppress the completion message for a specific notification, include `"spam": false` in its `metadata`.
+
 After processing a notification, Poppit publishes a completion message to Redis (list: `slack_messages` by default) that can be consumed by SlackLiner for Slack notifications.
 
 **Success Message Format:**
