@@ -224,3 +224,26 @@ func TestCommandOutputIncludesStatusCodeJSONField(t *testing.T) {
 		t.Errorf("status_code = %v, want 0", got)
 	}
 }
+
+func TestShouldPublishCompletionMessage(t *testing.T) {
+	tests := []struct {
+		name     string
+		enabled  bool
+		metadata map[string]interface{}
+		want     bool
+	}{
+		{"no metadata", true, nil, true},
+		{"spam false", true, map[string]interface{}{"spam": false}, false},
+		{"spam true", true, map[string]interface{}{"spam": true}, true},
+		{"spam non-bool", true, map[string]interface{}{"spam": "false"}, true},
+		{"disabled", false, nil, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := shouldPublishCompletionMessage(Config{PublishCompletionMessage: tc.enabled}, Notification{Metadata: tc.metadata})
+			if got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
